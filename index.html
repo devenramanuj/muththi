@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gesture Share — મુઠ્ઠી વડે ફોટો મોકલો</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0B12;
+    --surface:#15151F;
+    --surface2:#1D1D2A;
+    --violet:#8B5CF6;
+    --cyan:#22D3EE;
+    --text:#F4F3F8;
+    --muted:#8B8A99;
+    --success:#34D399;
+    --warn:#FBBF24;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family:'Sora',system-ui,sans-serif;
+    overflow:hidden; overscroll-behavior:none;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ---------- Setup screen ---------- */
+  #setup{
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:22px; padding:24px;
+    background:radial-gradient(circle at 50% 20%, #1B1230 0%, var(--bg) 70%);
+  }
+  .eyebrow{font-size:12px; letter-spacing:.18em; color:var(--muted); text-transform:uppercase;}
+  h1{font-size:26px; font-weight:800; margin:0; text-align:center; line-height:1.3;}
+  .sub{color:var(--muted); font-size:14px; text-align:center; max-width:280px; line-height:1.5;}
+  input[type=text]{
+    width:220px; text-align:center; font-size:28px; letter-spacing:.3em;
+    padding:14px 10px; border-radius:16px; border:1px solid #2C2C3D;
+    background:var(--surface); color:var(--text); font-family:'JetBrains Mono',monospace;
+  }
+  input[type=text]:focus{outline:2px solid var(--violet);}
+  .btn{
+    border:none; border-radius:14px; padding:14px 28px; font-size:15px; font-weight:700;
+    font-family:'Sora',sans-serif; cursor:pointer; color:#0B0B12;
+    background:linear-gradient(135deg,var(--cyan),var(--violet));
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-ghost{
+    background:transparent; color:var(--muted); border:1px solid #2C2C3D;
+    padding:10px 18px; border-radius:12px; font-size:13px; font-family:'Sora',sans-serif;
+  }
+  .config-toggle{position:fixed; top:14px; right:14px; font-size:11px; color:var(--muted); background:none; border:none;}
+  #configBox{
+    position:fixed; inset:0; background:rgba(0,0,0,.85); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:24px;
+  }
+  #configBox textarea{
+    width:100%; max-width:320px; height:70px; border-radius:12px; border:1px solid #2C2C3D;
+    background:var(--surface); color:var(--text); padding:12px; font-size:12px; font-family:'JetBrains Mono',monospace;
+  }
+  .configPanel{display:flex; flex-direction:column; gap:12px; align-items:center;}
+
+  /* ---------- Main screen ---------- */
+  #main{position:fixed; inset:0; display:none; flex-direction:column;}
+  .topbar{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:16px 20px; font-size:12px; color:var(--muted);
+  }
+  .room-pill{
+    background:var(--surface); padding:6px 14px; border-radius:999px;
+    font-family:'JetBrains Mono',monospace; letter-spacing:.15em; color:var(--cyan); font-weight:700;
+  }
+
+  .stage{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:28px; touch-action:none; position:relative;
+  }
+
+  .orb-wrap{position:relative; width:220px; height:220px; display:flex; align-items:center; justify-content:center;}
+  .ring{
+    position:absolute; inset:0; border-radius:50%;
+    background:conic-gradient(var(--cyan) calc(var(--progress,0) * 1%), #22222f calc(var(--progress,0) * 1%));
+    transition:background .05s linear;
+  }
+  .ring::after{
+    content:""; position:absolute; inset:8px; border-radius:50%; background:var(--bg);
+  }
+  .orb{
+    position:relative; width:150px; height:150px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #C4B5FD, var(--violet) 45%, #4C1D95 100%);
+    box-shadow:0 0 60px rgba(139,92,246,.45), inset 0 0 30px rgba(255,255,255,.15);
+    display:flex; align-items:center; justify-content:center;
+    animation:pulse 3.2s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.035); }
+  }
+  .orb img{width:100%; height:100%; object-fit:cover; border-radius:50%;}
+  .orb-icon{font-size:44px;}
+
+  .hint{font-size:14px; color:var(--muted); text-align:center; max-width:260px; line-height:1.6;}
+  .hint b{color:var(--text);}
+
+  .status{
+    min-height:22px; font-size:13px; font-weight:600; text-align:center;
+    color:var(--success);
+  }
+  .status.err{color:#F87171;}
+  .status.busy{color:var(--warn);}
+
+  .actions{display:flex; gap:14px; padding:0 24px 28px; justify-content:center;}
+  .actionBtn{
+    flex:1; max-width:150px; padding:14px 10px; border-radius:16px;
+    background:var(--surface); border:1px solid #2C2C3D; color:var(--text);
+    font-family:'Sora',sans-serif; font-size:13px; font-weight:700; display:flex;
+    flex-direction:column; align-items:center; gap:6px;
+  }
+  .actionBtn span.ic{font-size:20px;}
+  .actionBtn.primary{background:linear-gradient(135deg,var(--cyan),var(--violet)); color:#0B0B12; border:none;}
+
+  #fileInput{display:none;}
+
+  .footer-note{text-align:center; font-size:11px; color:#5B5A68; padding-bottom:10px;}
+</style>
+</head>
+<body>
+
+<!-- ============ SETUP SCREEN ============ -->
+<div id="setup">
+  <button class="config-toggle" onclick="document.getElementById('configBox').style.display='flex'">⚙ Setup</button>
+  <div class="eyebrow">Gesture Share</div>
+  <h1>મુઠ્ઠી બંધ કરો,<br>ફોટો કોપી થાય</h1>
+  <p class="sub">બંને ફોનમાં એક જ 4-આંકડાનો Room Code નાખો, પછી એક ફોનમાં ફોટો પસંદ કરી પિંચ-ઈન કરો, બીજા ફોનમાં પિંચ-આઉટ કરો.</p>
+  <input type="text" id="roomCodeInput" maxlength="4" inputmode="numeric" placeholder="0000">
+  <button class="btn" onclick="connectRoom()">જોડાવો</button>
+</div>
+
+<!-- Config popup for Apps Script URL -->
+<div id="configBox">
+  <div class="configPanel">
+    <div class="eyebrow">Apps Script URL</div>
+    <textarea id="scriptUrlInput" placeholder="https://script.google.com/macros/s/xxxx/exec"></textarea>
+    <button class="btn" onclick="saveConfig()">Save</button>
+    <button class="btn-ghost" onclick="document.getElementById('configBox').style.display='none'">બંધ કરો</button>
+  </div>
+</div>
+
+<!-- ============ MAIN SCREEN ============ -->
+<div id="main">
+  <div class="topbar">
+    <div class="room-pill" id="roomPill">0000</div>
+    <div id="connStatus">● તૈયાર</div>
+  </div>
+
+  <div class="stage" id="gestureZone">
+    <div class="orb-wrap">
+      <div class="ring" id="ring"></div>
+      <div class="orb" id="orb"><span class="orb-icon" id="orbIcon">✊</span></div>
+    </div>
+    <div class="hint">
+      ફોટો પસંદ કરીને <b>સ્ક્રીન પર મુઠ્ઠી વાળો</b> (pinch-in) = Copy<br>
+      બીજા ફોનમાં <b>સ્ક્રીન પર મુઠ્ઠી ખોલો</b> (pinch-out) = Paste
+    </div>
+    <div class="status" id="statusText">&nbsp;</div>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*,application/pdf">
+
+  <div class="actions">
+    <button class="actionBtn" onclick="document.getElementById('fileInput').click()">
+      <span class="ic">🖼️</span> ફોટો પસંદ કરો
+    </button>
+    <button class="actionBtn primary" onclick="manualCopy()">
+      <span class="ic">✊</span> Copy કરો
+    </button>
+    <button class="actionBtn" onclick="manualPaste()">
+      <span class="ic">✋</span> Paste કરો
+    </button>
+  </div>
+  <div class="footer-note">Room Code બદલવા માટે ⚙ ટોચ પર ડબલ-ટેપ કરો</div>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const CONFIG = {
+  SCRIPT_URL: localStorage.getItem('gs_script_url') || ""
+};
+document.getElementById('scriptUrlInput').value = CONFIG.SCRIPT_URL;
+
+function saveConfig(){
+  const url = document.getElementById('scriptUrlInput').value.trim();
+  if(!url){ alert('URL નાખો'); return; }
+  localStorage.setItem('gs_script_url', url);
+  CONFIG.SCRIPT_URL = url;
+  document.getElementById('configBox').style.display='none';
+}
+
+/* ================= STATE ================= */
+let roomCode = localStorage.getItem('gs_room_code') || "";
+let selectedFile = null;      // File object waiting to be copied
+let selectedBase64 = null;
+let isBusy = false;
+
+const setupEl = document.getElementById('setup');
+const mainEl = document.getElementById('main');
+const roomPill = document.getElementById('roomPill');
+const statusText = document.getElementById('statusText');
+const ring = document.getElementById('ring');
+const orb = document.getElementById('orb');
+const orbIcon = document.getElementById('orbIcon');
+
+function connectRoom(){
+  const val = document.getElementById('roomCodeInput').value.trim();
+  if(val.length !== 4){ alert('4 આંકડાનો કોડ નાખો'); return; }
+  if(!CONFIG.SCRIPT_URL){ alert('પહેલા ⚙ Setup માં Apps Script URL નાખો'); return; }
+  roomCode = val;
+  localStorage.setItem('gs_room_code', roomCode);
+  roomPill.textContent = roomCode;
+  setupEl.style.display='none';
+  mainEl.style.display='flex';
+}
+
+// double-tap top bar area to go back to setup (change room)
+let lastTap=0;
+document.querySelector('.topbar').addEventListener('click', ()=>{
+  const now=Date.now();
+  if(now-lastTap<400){
+    mainEl.style.display='none';
+    setupEl.style.display='flex';
+  }
+  lastTap=now;
+});
+
+/* ================= FILE SELECT ================= */
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    selectedBase64 = ev.target.result.split(',')[1];
+    orb.innerHTML = `<img src="${ev.target.result}" alt="preview">`;
+    setStatus('ફોટો તૈયાર — હવે મુઠ્ઠી વાળો (Copy)', 'ok');
+  };
+  reader.readAsDataURL(file);
+});
+
+function setStatus(msg, type){
+  statusText.textContent = msg;
+  statusText.className = 'status' + (type==='err' ? ' err' : type==='busy' ? ' busy' : '');
+}
+
+/* ================= COPY (upload) ================= */
+async function doCopy(){
+  if(isBusy) return;
+  if(!selectedBase64){ setStatus('પહેલા ફોટો પસંદ કરો', 'err'); return; }
+  isBusy = true;
+  setStatus('મોકલાય છે…', 'busy');
+  try{
+    const res = await fetch(CONFIG.SCRIPT_URL, {
+      method:'POST',
+      body: JSON.stringify({
+        roomCode: roomCode,
+        fileName: selectedFile.name,
+        mimeType: selectedFile.type,
+        dataBase64: selectedBase64
+      })
+    });
+    const data = await res.json();
+    if(data.ok){
+      setStatus('✅ Copy થયું! બીજા ફોનમાં Paste કરો', 'ok');
+      pulseSuccess();
+    } else {
+      setStatus('❌ ' + (data.error || 'ભૂલ થઈ'), 'err');
+    }
+  }catch(err){
+    setStatus('❌ નેટવર્ક ભૂલ: ' + err.message, 'err');
+  }
+  isBusy = false;
+}
+
+/* ================= PASTE (download) ================= */
+async function doPaste(){
+  if(isBusy) return;
+  isBusy = true;
+  setStatus('શોધાય છે…', 'busy');
+  try{
+    const metaRes = await fetch(`${CONFIG.SCRIPT_URL}?action=fetch&roomCode=${roomCode}`);
+    const metaData = await metaRes.json();
+    if(!metaData.ok || metaData.empty){
+      setStatus('કંઈ મળ્યું નહીં. પહેલા બીજા ફોનમાં Copy કરો', 'err');
+      isBusy = false; return;
+    }
+    const meta = metaData.meta;
+    setStatus('ડાઉનલોડ થાય છે…', 'busy');
+    const fileRes = await fetch(`${CONFIG.SCRIPT_URL}?action=download&fileId=${meta.fileId}`);
+    const fileData = await fileRes.json();
+    if(!fileData.ok){ setStatus('❌ ડાઉનલોડ નિષ્ફળ', 'err'); isBusy=false; return; }
+
+    const dataUrl = `data:${meta.mimeType};base64,${fileData.dataBase64}`;
+    orb.innerHTML = `<img src="${dataUrl}" alt="pasted">`;
+    setStatus('✅ Paste થયું!', 'ok');
+    pulseSuccess();
+    offerSave(dataUrl, meta.fileName);
+  }catch(err){
+    setStatus('❌ નેટવર્ક ભૂલ: ' + err.message, 'err');
+  }
+  isBusy = false;
+}
+
+function offerSave(dataUrl, fileName){
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = fileName || 'shared_image.jpg';
+  a.textContent = 'ડાઉનલોડ / સેવ કરો';
+  a.style.cssText = 'display:block;text-align:center;color:#22D3EE;margin-top:6px;font-size:13px;';
+  statusText.appendChild(document.createElement('br'));
+  statusText.appendChild(a);
+}
+
+function pulseSuccess(){
+  orb.style.boxShadow = '0 0 90px rgba(52,211,153,.6), inset 0 0 30px rgba(255,255,255,.2)';
+  setTimeout(()=>{ orb.style.boxShadow=''; }, 900);
+}
+
+function manualCopy(){ doCopy(); }
+function manualPaste(){ doPaste(); }
+
+/* ================= PINCH GESTURE DETECTION ================= */
+const zone = document.getElementById('gestureZone');
+let pinchStartDist = null;
+let pinchTriggered = false;
+
+function getDist(touches){
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+
+zone.addEventListener('touchstart', (e)=>{
+  if(e.touches.length >= 2){
+    pinchStartDist = getDist(e.touches);
+    pinchTriggered = false;
+  }
+}, {passive:true});
+
+zone.addEventListener('touchmove', (e)=>{
+  if(e.touches.length >= 2 && pinchStartDist){
+    const currentDist = getDist(e.touches);
+    const ratio = currentDist / pinchStartDist;
+    // visual feedback ring: pinch-in fills ring, pinch-out empties it
+    const progress = Math.min(100, Math.max(0, (1 - ratio) * 150));
+    ring.style.setProperty('--progress', progress);
+
+    if(ratio < 0.55 && !pinchTriggered){
+      pinchTriggered = true;
+      orbIcon.textContent = '✊';
+      doCopy();
+    } else if(ratio > 1.6 && !pinchTriggered){
+      pinchTriggered = true;
+      orbIcon.textContent = '✋';
+      doPaste();
+    }
+  }
+}, {passive:true});
+
+zone.addEventListener('touchend', ()=>{
+  pinchStartDist = null;
+  ring.style.setProperty('--progress', 0);
+}, {passive:true});
+
+/* Auto-connect if room code already saved */
+if(roomCode && CONFIG.SCRIPT_URL){
+  document.getElementById('roomCodeInput').value = roomCode;
+}
+</script>
+</body>
+</html>

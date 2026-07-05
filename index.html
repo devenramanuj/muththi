@@ -195,7 +195,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script>
 /* ================= CONFIG ================= */
 const CONFIG = {
@@ -402,7 +401,7 @@ if(roomCode && CONFIG.SCRIPT_URL){
 /* ================= CAMERA GESTURE MODE ================= */
 let mode = 'touch';
 let handsInstance = null;
-let cameraInstance = null;
+let cameraRunning = false;
 let lastGestureState = null;
 let lastTriggerTime = 0;
 const COOLDOWN_MS = 2200;
@@ -432,28 +431,61 @@ function toggleMode(){
 
 async function startCamera(){
   const videoEl = document.getElementById('inputVideo');
+  setStatus('કેમેરા પરવાનગી માંગાય છે…', 'busy');
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setStatus('❌ આ બ્રાઉઝર camera ને support નથી કરતું', 'err');
+    return;
+  }
+  if(typeof Hands === 'undefined'){
+    setStatus('❌ Camera library લોડ ના થઈ — ઇન્ટરનેટ ચેક કરો', 'err');
+    return;
+  }
+
   try{
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user' },
+      audio: false
+    });
+    videoEl.srcObject = stream;
+    await videoEl.play();
+    setStatus('કેમેરા ચાલુ — હાથ બતાવો', 'busy');
+
     if(!handsInstance){
       handsInstance = new Hands({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
       handsInstance.setOptions({maxNumHands:1, modelComplexity:0, minDetectionConfidence:0.6, minTrackingConfidence:0.6});
       handsInstance.onResults(onHandResults);
     }
-    if(!cameraInstance){
-      cameraInstance = new Camera(videoEl, {
-        onFrame: async ()=>{ await handsInstance.send({image: videoEl}); },
-        width:260, height:200, facingMode:'user'
-      });
-    }
-    await cameraInstance.start();
-    setStatus('કેમેરા ચાલુ — હાથ બતાવો', 'busy');
+    cameraRunning = true;
+    requestAnimationFrame(cameraLoop);
   }catch(err){
-    setStatus('❌ કેમેરા પરવાનગી ના મળી', 'err');
+    if(err.name === 'NotAllowedError'){
+      setStatus('❌ Camera permission ના મળી — Browser Settings માં Allow કરો', 'err');
+    } else if(err.name === 'NotFoundError'){
+      setStatus('❌ Camera મળ્યું નહીં', 'err');
+    } else {
+      setStatus('❌ ' + err.name + ': ' + err.message, 'err');
+    }
     console.error(err);
   }
 }
 
+async function cameraLoop(){
+  if(!cameraRunning) return;
+  const videoEl = document.getElementById('inputVideo');
+  if(videoEl.readyState >= 2 && handsInstance){
+    await handsInstance.send({image: videoEl});
+  }
+  requestAnimationFrame(cameraLoop);
+}
+
 function stopCamera(){
-  if(cameraInstance){ cameraInstance.stop(); }
+  cameraRunning = false;
+  const videoEl = document.getElementById('inputVideo');
+  if(videoEl.srcObject){
+    videoEl.srcObject.getTracks().forEach(t=>t.stop());
+    videoEl.srcObject = null;
+  }
   lastGestureState = null;
   setStatus('', null);
 }

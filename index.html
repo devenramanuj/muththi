@@ -289,7 +289,8 @@ async function doPaste(){
   isBusy = true;
   setStatus('શોધાય છે…', 'busy');
   try{
-    const metaRes = await fetch(`${CONFIG.SCRIPT_URL}?action=fetch&roomCode=${roomCode}`);
+    const t1 = Date.now();
+    const metaRes = await fetch(`${CONFIG.SCRIPT_URL}?action=fetch&roomCode=${roomCode}&_=${t1}`, {cache:'no-store'});
     const metaData = await metaRes.json();
     if(!metaData.ok || metaData.empty){
       setStatus('કંઈ મળ્યું નહીં. પહેલા બીજા ફોનમાં Copy કરો', 'err');
@@ -297,7 +298,8 @@ async function doPaste(){
     }
     const meta = metaData.meta;
     setStatus('ડાઉનલોડ થાય છે…', 'busy');
-    const fileRes = await fetch(`${CONFIG.SCRIPT_URL}?action=download&fileId=${meta.fileId}`);
+    const t2 = Date.now();
+    const fileRes = await fetch(`${CONFIG.SCRIPT_URL}?action=download&fileId=${meta.fileId}&_=${t2}`, {cache:'no-store'});
     const fileData = await fileRes.json();
     if(!fileData.ok){ setStatus('❌ ડાઉનલોડ નિષ્ફળ', 'err'); isBusy=false; return; }
 
